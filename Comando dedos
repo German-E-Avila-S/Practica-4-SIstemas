@@ -1,0 +1,85 @@
+COMANDO DEDOS
+
+from socketIO_client import SocketIO
+import cv2
+import mediapipe as mp
+
+# Configuración del servidor
+IP_SERVER = '192.168.119.127'
+socketIO = SocketIO(IP_SERVER, 3000)
+print("🔌 Conexión establecida con el servidor.")
+
+# Inicialización de MediaPipe
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(
+    static_image_mode=False,
+    max_num_hands=1,
+    min_detection_confidence=0.7,
+    min_tracking_confidence=0.7
+)
+mp_drawing = mp.solutions.drawing_utils
+
+# Función para identificar dedos activos
+def detectar_dedos_activos(puntos):
+    estado_dedos = []
+    ids_puntas = [8, 12, 16, 20]
+    for id_punta in ids_puntas:
+        if puntos[id_punta].y < puntos[id_punta - 2].y:
+            estado_dedos.append(1)
+        else:
+            estado_dedos.append(0)
+    return estado_dedos
+
+# Variables auxiliares
+dedos_previos = [None, None, None, None]
+mano_presente_prev = None
+
+# Captura de video
+cap = cv2.VideoCapture(0)
+
+print("📷 Cámara encendida. Pulsa ESC para finalizar.")
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    imagen_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    resultado = hands.process(imagen_rgb)
+
+    dedos_actuales = [0, 0, 0, 0]  # Valor por defecto
+
+    if resultado.multi_hand_landmarks:
+        for landmarks_mano in resultado.multi_hand_landmarks:
+            mp_drawing.draw_landmarks(frame, landmarks_mano, mp_hands.HAND_CONNECTIONS)
+            dedos_actuales = detectar_dedos_activos(landmarks_mano.landmark)
+
+    # Enviar solo si hay cambio de estado
+    for idx in range(4):
+        if dedos_previos[idx] != dedos_actuales[idx]:
+            dedos_previos[idx] = dedos_actuales[idx]
+            etiqueta = f"FINGER_{idx+1}"
+            valor = "ACTIVE" if dedos_actuales[idx] else "INACTIVE"
+            socketIO.emit("desde_cliente", f"{etiqueta}:{valor}")
+            print(f"{etiqueta}:{valor}")
+
+    # Control LED General (si hay algún dedo activo)
+    mano_detectada = any(dedos_actuales)
+    socketIO.emit("desde_cliente", "ANY_FINGER:ACTIVE" if mano_detectada else "ANY_FINGER:INACTIVE")
+    print("ANY_FINGER:ACTIVE" if mano_detectada else "ANY_FINGER:INACTIVE")
+    mano_presente_prev = mano_detectada
+
+    # Mostrar información en pantalla
+    for idx, estado in enumerate(dedos_actuales):
+        color = (0, 255, 0) if estado else (0, 0, 255)
+        texto = f"Finger {idx+1}: {'ON' if estado else 'OFF'}"
+        cv2.putText(frame, texto, (10, 30 + idx*25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+
+    cv2.imshow("Finger Tracker", frame)
+    if cv2.waitKey(1) & 0xFF == 27:
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+socketIO.disconnect()
+print("🔌 Conexión finalizada.")
