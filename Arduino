@@ -1,0 +1,208 @@
+#include <WiFi.h>
+#include <SocketIoClient.h>
+
+#define ONBOARD_LED 2  // LED integrado en la placa, si es necesario
+
+// Configuración de los pines de los LEDs
+const int LED_1 = 12;
+const int LED_2 = 14;
+const int LED_3 = 27;
+const int LED_4 = 26;
+
+const char* ssid = "motoedge50fusion_4429";  
+const char* password = "rayno1408";  
+const char* server = "192.168.119.127";   
+const uint16_t port = 3000;    
+
+SocketIoClient socketIO;
+
+
+
+// Variables para guardar el estado de los LEDs
+bool led_1_state = LOW;
+bool led_2_state = LOW;
+bool led_3_state = LOW;
+bool led_4_state = LOW;
+
+// Variables para el envío de datos
+String mensaje;
+uint64_t now = 0;
+uint64_t timestamp = 0;
+
+int valor;
+float valor_f;
+
+
+void setup() {
+  Serial.begin(115200);
+
+  conectar_WiFiSTA();
+  
+  socketIO.begin(server, port);
+  socketIO.on("desde_servidor_comando", procesar_mensaje_recibido);
+
+  pinMode(ONBOARD_LED, OUTPUT);
+  pinMode(LED_1, OUTPUT);
+  pinMode(LED_2, OUTPUT);
+  pinMode(LED_3, OUTPUT);
+  pinMode(LED_4, OUTPUT);
+}
+
+void loop() {
+  now = millis();
+
+  // Enviar datos al servidor cada segundo
+  if (now - timestamp > 1000) {
+    timestamp = now;
+
+    // Leer señal analógica y convertirla a un rango de 0 a 200
+    valor = analogRead(34);
+    valor_f = ((float)valor / 4095) * 200;
+    
+    // Enviar el dato al servidor
+    mensaje = "\"" + String(valor_f) + "\"";
+    socketIO.emit("desde_esp32", mensaje.c_str());
+  }
+  socketIO.loop();  // Necesario para procesar los eventos de Socket.IO
+}
+
+
+
+void conectar_WiFiSTA() {
+   delay(10);
+   Serial.println("\nConectando a WiFi...");
+   WiFi.mode(WIFI_STA);
+   WiFi.begin(ssid, password);
+   
+   while (WiFi.status() != WL_CONNECTED) { 
+     delay(100);
+     Serial.print(".");
+   }
+   
+   Serial.println("\nConexión exitosa");
+   Serial.print("Dirección IP asignada: ");
+   Serial.println(WiFi.localIP());
+}
+
+void procesar_mensaje_recibido(const char* payload, size_t length) {
+  String mensaje = String(payload);
+  mensaje.trim();  // Limpiar posibles espacios en blanco
+
+  Serial.printf("Comando recibido: %s\n", mensaje.c_str());
+
+  // Lógica para controlar los LEDs según el comando recibido
+  if (mensaje == "ANY_FINGER:ACTIVE") {
+    Serial.println("Al menos un dedo levantado");
+    // Solo enciende los LEDs cuando se recibe el comando correspondiente
+    // No se activa todos los LEDs de inmediato
+  }
+  else if (mensaje == "ANY_FINGER:INACTIVE") {
+    Serial.println("Ningún dedo levantado");
+    // Apagar todos los LEDs si se reciben este comando
+    if (led_1_state) {
+      digitalWrite(LED_1, LOW);
+      led_1_state = LOW;
+    }
+    if (led_2_state) {
+      digitalWrite(LED_2, LOW);
+      led_2_state = LOW;
+    }
+    if (led_3_state) {
+      digitalWrite(LED_3, LOW);
+      led_3_state = LOW;
+    }
+    if (led_4_state) {
+      digitalWrite(LED_4, LOW);
+      led_4_state = LOW;
+    }
+  }
+
+  // Lógica para cada dedo específico
+  else if (mensaje == "FINGER_1:ACTIVE") {
+    Serial.println("Dedo 1 levantado");
+    if (!led_1_state) {
+      digitalWrite(LED_1, HIGH);
+      led_1_state = HIGH;
+    }
+  } 
+  else if (mensaje == "FINGER_1:INACTIVE") {
+    Serial.println("Dedo 1 no levantado");
+    if (led_1_state) {
+      digitalWrite(LED_1, LOW);
+      led_1_state = LOW;
+    }
+  }
+
+  else if (mensaje == "FINGER_2:ACTIVE") {
+    Serial.println("Dedo 2 levantado");
+    if (!led_2_state) {
+      digitalWrite(LED_2, HIGH);
+      led_2_state = HIGH;
+    }
+  }
+  else if (mensaje == "FINGER_2:INACTIVE") {
+    Serial.println("Dedo 2 no levantado");
+    if (led_2_state) {
+      digitalWrite(LED_2, LOW);
+      led_2_state = LOW;
+    }
+  }
+
+  else if (mensaje == "FINGER_3:ACTIVE") {
+    Serial.println("Dedo 3 levantado");
+    if (!led_3_state) {
+      digitalWrite(LED_3, HIGH);
+      led_3_state = HIGH;
+    }
+  }
+  else if (mensaje == "FINGER_3:INACTIVE") {
+    Serial.println("Dedo 3 no levantado");
+    if (led_3_state) {
+      digitalWrite(LED_3, LOW);
+      led_3_state = LOW;
+    }
+  }
+
+  else if (mensaje == "FINGER_4:ACTIVE") {
+    Serial.println("Dedo 4 levantado");
+    if (!led_4_state) {
+      digitalWrite(LED_4, HIGH);
+      led_4_state = HIGH;
+    }
+  }
+  else if (mensaje == "FINGER_4:INACTIVE") {
+    Serial.println("Dedo 4 no levantado");
+    if (led_4_state) {
+      digitalWrite(LED_4, LOW);
+      led_4_state = LOW;
+    }
+  }
+
+
+
+
+
+ // Lógica para controlar los LEDs según el comando recibido
+if (mensaje == "ON") {
+    Serial.println("Encendiendo todos los LEDs");
+    digitalWrite(LED_1, HIGH);
+    digitalWrite(LED_2, HIGH);
+    digitalWrite(LED_3, HIGH);
+    digitalWrite(LED_4, HIGH);
+    led_1_state = HIGH;
+    led_2_state = HIGH;
+    led_3_state = HIGH;
+    led_4_state = HIGH;
+  }
+  else if (mensaje == "OFF") {
+    Serial.println("Apagando todos los LEDs");
+    digitalWrite(LED_1, LOW);
+    digitalWrite(LED_2, LOW);
+    digitalWrite(LED_3, LOW);
+    digitalWrite(LED_4, LOW);
+    led_1_state = LOW;
+    led_2_state = LOW;
+    led_3_state = LOW;
+    led_4_state = LOW;
+  }
+}
