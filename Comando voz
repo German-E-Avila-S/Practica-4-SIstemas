@@ -1,0 +1,42 @@
+COMANDO DE VOZ
+
+from socketIO_client import SocketIO
+import speech_recognition as sr
+
+IP_SERVER = '192.168.119.127'
+print("Comenzando...")
+socketIO = SocketIO(IP_SERVER, 3000)
+print("Conectado al servidor")
+
+
+print("Speech Recognition Version: "+sr._version_)
+r = sr.Recognizer()
+mic = sr.Microphone()
+
+matches_on = ["PRENDER", "ENCENDER", "SWITCH ON"]
+matches_off = ["APAGAR", "SWITCH OFF"]
+
+
+
+with mic as source:
+
+    print("Grabando...")
+    r.adjust_for_ambient_noise(source)
+    while True:
+        audio = r.listen(source)
+        print("Traduciendo...")
+        try:
+            text = r.recognize_google(audio)
+            text = text.upper()
+            print(text)
+            if any(x in text for x in matches_on): 
+                print("Prendiendo")
+                socketIO.emit("desde_cliente","ON")
+                
+            if any(x in text for x in matches_off): 
+                print("Apagando")
+                socketIO.emit("desde_cliente","OFF")
+        except sr.UnknownValueError:
+            print("Google Cloud Speech no pudo entender el audio")
+        except sr.RequestError as e:
+            print("No es posible consultar el servicio de Google Cloud Speech; {0}", format)
